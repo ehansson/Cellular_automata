@@ -67,7 +67,7 @@ class Row:
         self.draw()
         
 
-class CellularAutomata1D(tk.Frame):
+class CellularAutomaton1D(tk.Frame):
     def __init__(self, master = None):
         tk.Frame.__init__(self, master)
         self.grid()
@@ -75,15 +75,20 @@ class CellularAutomata1D(tk.Frame):
         self.create_widgets()
         
     def create_widgets(self):
+        self.rule = tk.IntVar()
+        # Create "Run" button
         self.run_button = tk.Button(
             self, text="Run", command=self.run)
         self.run_button.grid(column=0, row=0)
+        # Create "Quit" button
         self.quit_button = tk.Button(
             self, text="Quit", command=self.master.destroy)
         self.quit_button.grid(column=0, row=1) #Crashes if command=self.quit
+        # Create entry box for custom rule
         self.ruleEntry = tk.Entry(self)
         self.ruleEntry.grid(column=2, row=1)
-        self.ruleEntry.insert(10, 106)
+        self.ruleEntry.insert(10, 106) #106 is default (because it looks cool)
+        # Create radiobuttons for choosing beween random or custom rule
         self.rulechoice = tk.IntVar()
         self.rulechoice.set(0) #Random rule is default
         self.randRadiobutton = tk.Radiobutton(
@@ -92,35 +97,47 @@ class CellularAutomata1D(tk.Frame):
         self.customRadiobutton = tk.Radiobutton(
             self, text="Custom rule", variable=self.rulechoice, value=1)
         self.customRadiobutton.grid(column=1, row=1)
+        # Create canvas for displacing evolution of cells
         self.canvas = tk.Canvas(
             self, width=SCREENWIDTH, height=SCREENHEIGHT, bg=SCREENCOLOR)
         self.canvas.grid(column=0, row=2, columnspan=3)
-
-        
-    def run(self):
-        
-        if self.rulechoice.get() == 0:
-            self.rule = random.randint(0, 255) #Random rules
+        # Show current rule
+        self.showrule = tk.Label(self, text = "Current rule:    ", compound=tk.LEFT)
+        self.showrule.grid(column=2, row=0)
+    
+    def get_rules(self):
+        if self.rulechoice.get() == 0:  #Random rule
+            self.rule.set(random.randint(0, 255))
         elif self.rulechoice.get() == 1:
-            try:
-                self.rule = int(self.ruleEntry.get())
+            try:  #Custom rule
+                self.rule.set(int(self.ruleEntry.get()))
             except:
-                self.rule = 0
+                self.rule.set(0)
                 print('Enter a rule between 0 and 255 or choose "Random rule"')
-        else:
-            self.rule = 0
-            print('Enter a rule between 0 and 255 or choose "Random rule"')
-        startingcells = [random.randint(0, 1) for x in range(int(SCREENWIDTH/GRID))]
-        #rule = random.randint(0, 255) #Random rules
-        #rule = 90 #Coolest rule I found so far! 60 is also cool
-        rules = dec2binarylist(self.rule)
-        print(self.rule)
-        cells = Row(self.canvas, startingcells, rules)
+        else:   #If for some reason a bug happens where none of the radiobuttons are selected
+            self.rule.set(0)
+            print('Choose "Random rule" or "Custom rule"')
+        return self.rule
 
-        for _ in range(200):
+        
+    def print_cells(self):
+        rule = self.rule.get()
+        startingcells = [random.randint(0, 1) for x in range(int(SCREENWIDTH/GRID))]
+        rules = dec2binarylist(rule)
+        print(rule)
+        
+        # Print 150 evolutions of cells
+        cells = Row(self.canvas, startingcells, rules)
+        for _ in range(150):
             cells.next_row()
             
-app = CellularAutomata1D()
-app.master.title("1D automata")
+    def run(self):
+        self.get_rules()
+        self.print_cells()
+        self.showrule.config(text="Current rule: " + str(self.rule.get()))
+            
+app = CellularAutomaton1D()
+app.master.title("1D Cellular Automaton")
 app.mainloop()
+
 
