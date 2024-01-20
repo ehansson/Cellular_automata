@@ -8,17 +8,18 @@ Created on Fri Jan 19 18:40:04 2024
 
 import tkinter as tk
 import random
+from binaryconverter import dec2binarylist
 
 GRID = 5
 SCREENWIDTH = GRID*200
-SCREENHEIGHT = GRID*300
+SCREENHEIGHT = GRID*150
 SCREENCOLOR = "#888888"
 ONCOLOR = "#FFFFFF"
 OFFCOLOR = "#202020"
 
 
 class Cell:
-    def __init__(self, col_idx, row_idx, state):
+    def __init__(self, canvas, col_idx, row_idx, state):
         self.coords = [col_idx*GRID, row_idx*GRID]
         self.state = state
         
@@ -32,7 +33,8 @@ class Cell:
         
         
 class Row:
-    def __init__(self, firstrow, newrules):
+    def __init__(self, canvas, firstrow, newrules):
+        self.canvas = canvas
         self.length = len(firstrow)
         self.row_idx = 0
         self.cells = []
@@ -50,32 +52,75 @@ class Row:
         
     def draw(self):
         for idx in range(self.length):
-            self.cells.append(Cell(idx, self.row_idx, self.states[idx]))
+            self.cells.append(Cell(self.canvas, idx, self.row_idx, self.states[idx]))
             
     def next_row(self):
         self.row_idx += 1
-        
+        next_states = []
         for idx in range(self.length):
             left_neighbour = self.states[idx-1]
             right_neighbour = self.states[(idx+1)%self.length]
-            self.states[idx] = self.rules[
-                (left_neighbour, self.states[idx], right_neighbour)]
+            next_states.insert(idx, self.rules[
+                (left_neighbour, self.states[idx], right_neighbour)])
         
+        self.states = next_states
         self.draw()
         
+
+class CellularAutomata1D(tk.Frame):
+    def __init__(self, master = None):
+        tk.Frame.__init__(self, master)
+        self.grid()
         
-screen = tk.Tk()
-canvas = tk.Canvas(screen, width=SCREENWIDTH, height=SCREENHEIGHT, bg=SCREENCOLOR)
-canvas.pack()
+        self.create_widgets()
+        
+    def create_widgets(self):
+        self.run_button = tk.Button(
+            self, text="Run", command=self.run)
+        self.run_button.grid(column=0, row=0)
+        self.quit_button = tk.Button(
+            self, text="Quit", command=self.master.destroy)
+        self.quit_button.grid(column=0, row=1) #Crashes if command=self.quit
+        self.ruleEntry = tk.Entry(self)
+        self.ruleEntry.grid(column=2, row=1)
+        self.ruleEntry.insert(10, 106)
+        self.rulechoice = tk.IntVar()
+        self.rulechoice.set(0) #Random rule is default
+        self.randRadiobutton = tk.Radiobutton(
+            self, text="Random rule", variable=self.rulechoice, value=0)
+        self.randRadiobutton.grid(column=1, row=0)
+        self.customRadiobutton = tk.Radiobutton(
+            self, text="Custom rule", variable=self.rulechoice, value=1)
+        self.customRadiobutton.grid(column=1, row=1)
+        self.canvas = tk.Canvas(
+            self, width=SCREENWIDTH, height=SCREENHEIGHT, bg=SCREENCOLOR)
+        self.canvas.grid(column=0, row=2, columnspan=3)
 
-startingcells = [random.randint(0, 1) for x in range(int(SCREENWIDTH/GRID))]
-rules = [random.randint(0, 1) for x in range(8)]
-print(rules)
+        
+    def run(self):
+        
+        if self.rulechoice.get() == 0:
+            self.rule = random.randint(0, 255) #Random rules
+        elif self.rulechoice.get() == 1:
+            try:
+                self.rule = int(self.ruleEntry.get())
+            except:
+                self.rule = 0
+                print('Enter a rule between 0 and 255 or choose "Random rule"')
+        else:
+            self.rule = 0
+            print('Enter a rule between 0 and 255 or choose "Random rule"')
+        startingcells = [random.randint(0, 1) for x in range(int(SCREENWIDTH/GRID))]
+        #rule = random.randint(0, 255) #Random rules
+        #rule = 90 #Coolest rule I found so far! 60 is also cool
+        rules = dec2binarylist(self.rule)
+        print(self.rule)
+        cells = Row(self.canvas, startingcells, rules)
 
-cells = Row(startingcells, rules)
-
-for _ in range(200):
-    cells.next_row()
-
-screen.mainloop()
+        for _ in range(200):
+            cells.next_row()
+            
+app = CellularAutomata1D()
+app.master.title("1D automata")
+app.mainloop()
 
