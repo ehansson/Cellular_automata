@@ -32,7 +32,7 @@ class Cell:
         if self.state == 1:
             color = ONCOLOR
         x, y = self.coords
-        canvas.create_rectangle(x, y, x+GRID, y+GRID, 
+        self.cell = canvas.create_rectangle(x, y, x+GRID, y+GRID, 
                                          fill=color, tag="cell")
         
         
@@ -78,12 +78,15 @@ class Plane:
         self.cells = [[0 for w in range(self.width)] for h in range(self.height)]
         self.states = firstplane
         
-        self.draw()
-        
-    def draw(self):
         for h in range(self.height):
             for w in range(self.width):
                 self.cells[h][w] = (Cell(self.canvas, w, h, self.states[h][w]))
+        
+    def turn_on(self, cell):
+        self.canvas.itemconfig(cell.cell, fill=ONCOLOR)
+                
+    def turn_off(self, cell):
+        self.canvas.itemconfig(cell.cell, fill=OFFCOLOR)
                 
     def next_generation(self):
         next_states = [[0 for w in range(self.width)] for h in range(self.height)]
@@ -106,20 +109,27 @@ class Plane:
                 neigbours = [UL, U, UR, L, R, DL, D, DR]
                 
                 #Rules for Game of Life
-                if C == 0:
-                    if sum(neigbours) == 3: #If exactly 3 neigbours cell is born
+                if C == 0 and sum(neigbours) == 3: #If exactly 3 neigbours cell is born
                         next_states[h][w] = 1
-                    else: 
-                        next_states[h][w] = 0
-                else: #Cell survives if it has 2 or 3 neigbours
-                    if sum(neigbours) == 3 or sum(neigbours) == 2:
-                        next_states[h][w] = 1
-                    else: #If not 2 or 3 neighbors, cell dies
-                        next_states[h][w] = 0
+                
+                elif C == 1 and sum(neigbours) not in [2,3]:
+                        next_states[h][w] = 0 #If not 2 or 3 neighbors, cell dies
+                
+                else: 
+                    next_states[h][w] = C
                         
         self.states = next_states
-        self.draw()
-                
+        
+        
+    
+    def draw(self):
+        for h in range(self.height):
+            for w in range(self.width):
+                if self.states[h][w] == 1:
+                    self.turn_on(self.cells[h][w])
+                else:
+                    self.turn_off(self.cells[h][w])
+                     
 
 class CellularAutomaton1D(tk.Frame):
     def __init__(self, master = None):
@@ -210,6 +220,7 @@ class GameOfLife(tk.Frame):
     def __init__(self, master = None):
         tk.Frame.__init__(self, master)
         self.grid()
+        self.is_running = False
         
         self.create_widgets()
         self.print_cells()
@@ -224,6 +235,10 @@ class GameOfLife(tk.Frame):
         self.run_button = tk.Button(
             self, text="Run", command=self.run)
         self.run_button.grid(column=1, row=0)
+        # Create "Stop" button
+        self.run_button = tk.Button(
+            self, text="Stop", command=self.stop)
+        self.run_button.grid(column=1, row=1)
         # Create "Quit" button
         self.quit_button = tk.Button(
             self, text="Quit", command=self.master.destroy)
@@ -244,12 +259,18 @@ class GameOfLife(tk.Frame):
         
     def generate(self):
         self.cells.next_generation()
+        self.cells.draw()
+        print("Done")
         
     def run(self):
-        for _ in range(10):
+        self.is_running = True
+        while self.is_running == True:
             self.cells.next_generation()
+            self.cells.draw()
             self.canvas.update()
-        print("Ten generations done")
+            
+    def stop(self):
+        self.is_running = False
         
     def save_image(self):
         self.update()
