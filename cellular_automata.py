@@ -23,52 +23,76 @@ zoom = 1.25 #My computer has 125% screensize by default, adjust to fit your own
 
 
 class Cell:
-    def __init__(self, canvas, col_idx, row_idx, state):
+    def __init__(self, canvas, col_idx, row_idx):
         self.coords = [col_idx*GRID, row_idx*GRID]
-        self.state = state
+        self.state = 0
+        self.canvas = canvas
         
+        x, y = self.coords
+        self.cell = self.canvas.create_rectangle(x, y, x+GRID, y+GRID, 
+                                         fill=OFFCOLOR, tag="cell")
+        
+    def change(self):
+        self.state = (self.state + 1)%2
         if self.state == 0:
             color = OFFCOLOR
         if self.state == 1:
             color = ONCOLOR
-        x, y = self.coords
-        self.cell = canvas.create_rectangle(x, y, x+GRID, y+GRID, 
-                                         fill=color, tag="cell")
+        self.canvas.itemconfig(self.cell, fill=color)
+        
+    def reset(self):
+        self.state = 0
+        self.canvas.itemconfig(self.cell, fill=OFFCOLOR)
         
         
-class Row:
-    def __init__(self, canvas, firstrow, newrules):
+class Rows:
+    def __init__(self, canvas, firstrow):
         self.canvas = canvas
         self.length = len(firstrow)
+        self.height = SCREENHEIGHT
         self.row_idx = 0
         self.cells = []
         self.states = firstrow
-        self.rules = {(1,1,1) : None, (1,1,0) : None,
-                      (1,0,1) : None, (1,0,0) : None,
-                      (0,1,1) : None, (0,1,0) : None,
-                      (0,0,1) : None, (0,0,0) : None}
+        self.rules = {(1,1,1) : 0, (1,1,0) : 0,
+                      (1,0,1) : 0, (1,0,0) : 0,
+                      (0,1,1) : 0, (0,1,0) : 0,
+                      (0,0,1) : 0, (0,0,0) : 0}
+
+        
+        #Draw all cells
+        for row in range(int(SCREENHEIGHT/GRID)):
+            for idx in range(int(SCREENWIDTH/GRID)):
+                self.cells.append(Cell(self.canvas, idx, row))
+        
+        for idx in range(self.length):
+            if self.states[idx] == 1:
+                self.cells[idx].change()
+
+        
+    def draw(self, changes):
+        for x in changes:
+            self.cells[x + self.row_idx*self.length].change()
+           
+            
+    def next_row(self, newrules):
+        
         i = 0
         for rule in self.rules:
             self.rules[rule] = newrules[i]
             i += 1
-        
-        self.draw()
-        
-    def draw(self):
-        for idx in range(self.length):
-            self.cells.append(Cell(self.canvas, idx, self.row_idx, self.states[idx]))
-            
-    def next_row(self):
+           
         self.row_idx += 1
         next_states = []
+        changes = []
         for idx in range(self.length):
             left_neighbour = self.states[idx-1]
             right_neighbour = self.states[(idx+1)%self.length]
             next_states.insert(idx, self.rules[
                 (left_neighbour, self.states[idx], right_neighbour)])
-        
+            if next_states[idx] == 1:
+                changes.append(idx)
         self.states = next_states
-        self.draw()
+        self.draw(changes)
         
 class Plane:
     def __init__(self, canvas, firstplane):
@@ -77,10 +101,15 @@ class Plane:
         self.width = len(firstplane[0])
         self.cells = [[0 for w in range(self.width)] for h in range(self.height)]
         self.states = firstplane
+        self.changes = []
         
         for h in range(self.height):
             for w in range(self.width):
-                self.cells[h][w] = (Cell(self.canvas, w, h, self.states[h][w]))
+                self.cells[h][w] = (Cell(self.canvas, w, h))
+                if self.states[h][w] == 1:
+                    self.changes.append((h,w))
+                
+        self.draw()
         
     def turn_on(self, cell):
         self.canvas.itemconfig(cell.cell, fill=ONCOLOR)
@@ -111,25 +140,22 @@ class Plane:
                 #Rules for Game of Life
                 if C == 0 and sum(neigbours) == 3: #If exactly 3 neigbours cell is born
                         next_states[h][w] = 1
+                        self.changes.append((h,w))
                 
                 elif C == 1 and sum(neigbours) not in [2,3]:
                         next_states[h][w] = 0 #If not 2 or 3 neighbors, cell dies
-                
+                        self.changes.append((h,w))
                 else: 
                     next_states[h][w] = C
-                        
+                    
         self.states = next_states
-        
         
     
     def draw(self):
-        for h in range(self.height):
-            for w in range(self.width):
-                if self.states[h][w] == 1:
-                    self.turn_on(self.cells[h][w])
-                else:
-                    self.turn_off(self.cells[h][w])
-                     
+        for y, x in self.changes:
+            self.cells[y][x].change()
+        self.changes = []
+
 
 class CellularAutomaton1D(tk.Frame):
     def __init__(self, master = None):
@@ -169,8 +195,9 @@ class CellularAutomaton1D(tk.Frame):
         self.canvas = tk.Canvas(
             self, width=SCREENWIDTH, height=SCREENHEIGHT, bg=SCREENCOLOR)
         self.canvas.grid(column=0, row=2, columnspan=4)
+        self.create_cells()
         # Show current rule
-        self.showrule = tk.Label(self, text = "Current rule:    ", compound=tk.LEFT)
+        self.showrule = tk.Label(self, text = "Current rule: 0", compound=tk.LEFT)
         self.showrule.grid(column=2, row=0)
     
     def get_rules(self):
@@ -185,24 +212,28 @@ class CellularAutomaton1D(tk.Frame):
         else:   #If for some reason a bug happens where none of the radiobuttons are selected
             self.rule.set(0)
             print('Choose "Random rule" or "Custom rule"')
-        return self.rule
+        return self.rule.get()
 
         
-    def print_cells(self):
-        rule = self.rule.get()
-        startingcells = [random.randint(0, 1) for x in range(int(SCREENWIDTH/GRID))]
-        rules = dec2binarylist(rule)
-        print(rule)
+    def create_cells(self):
+        self.startingcells = [random.randint(0, 1) for x in range(int(SCREENWIDTH/GRID))]
         
-        # Print 120 evolutions of cells
-        cells = Row(self.canvas, startingcells, rules)
-        for _ in range(120):
-            cells.next_row()
+        # Print cells
+        self.rows = Rows(self.canvas, self.startingcells)
             
     def run(self):
-        self.get_rules()
-        self.print_cells()
+        self.rows.row_idx = 0
+        self.reset_canvas()
+        rule = self.get_rules()
+        rulelist = dec2binarylist(rule)
+        for _ in range(int(SCREENHEIGHT/GRID)-1):
+            self.rows.next_row(rulelist)
         self.showrule.config(text="Current rule: " + str(self.rule.get()))
+        
+    def reset_canvas(self):
+        for cell in self.rows.cells[int(SCREENWIDTH/GRID):]:
+            cell.reset()
+        self.rows.states = self.startingcells
         
     def save_image(self):
         self.update()
@@ -211,7 +242,6 @@ class CellularAutomaton1D(tk.Frame):
         y = (self.winfo_rooty() + self.canvas.winfo_y())*zoom
         width = self.canvas.winfo_width()*zoom
         height = self.canvas.winfo_height()*zoom
-        print(width,height,self.winfo_class())
         self.img = ImageGrab.grab(bbox=(x,y,x+width,y+height),
                                   include_layered_windows=False, all_screens=False)
         self.img.save(filelocation)
